@@ -1,0 +1,208 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Cart {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  createdAt  DateTime @default(now())
+
+  user       Int
+  items      CartItem[]
+}
+
+model CartItem {
+  id          Int      @id @default(autoincrement())
+  cartId      Int
+  productId   Int
+  variantId   Int?
+  itemQty     Int
+  lastUpdated DateTime @updatedAt
+
+  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])  
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+
+  products    Product[]
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  basePrice   Decimal
+  categoryId  Int
+  lastUpdated DateTime @updatedAt
+
+  category    Category @relation(fields: [categoryId], references: [id])
+  variants    ProductVariant[]
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+  wishlists   Wishlist[]
+}
+
+model ProductVariant {
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  image          Json     // Stores { url: "...", key: "..." }
+  size           String?
+  color          String?
+  material       String?
+  additionalPrice Decimal  @default(0)
+  stockQty       Int
+
+  product        Product  @relation(fields: [productId], references: [id])
+  cartItems      CartItem[] 
+  orderItems     OrderItem[]  // Fixed pluralization
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  orderDate   DateTime @default(now())
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal
+
+  user        Int
+  items       OrderItem[]
+  payments    Payment[]
+  shipping    Shipping[]
+  returns     Return[]
+  coupons     OrderCoupon[]
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  productId  Int
+  variantId  Int?
+  itemQty    Int
+  price      Decimal
+
+  order      Order   @relation(fields: [orderId], references: [id])
+  product    Product @relation(fields: [productId], references: [id])
+  variant    ProductVariant? @relation(fields: [variantId], references: [id])
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  orderId       Int
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+  transactionId String   @unique
+  paymentDate   DateTime @default(now())
+
+  order         Order @relation(fields: [orderId], references: [id])
+}
+
+model Shipping {
+  id                 Int      @id @default(autoincrement())
+  orderId            Int
+  address            String
+  city              String
+  state             String
+  zipCode           String
+  country           String
+  shippingStatus    ShippingStatus @default(PENDING)
+  estimatedDelivery DateTime?  // Made optional
+  trackingNumber    String?  @unique
+
+  order             Order @relation(fields: [orderId], references: [id])
+}
+
+model Wishlist {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  productId  Int
+  createdAt  DateTime @default(now())
+
+  user       Int
+  product    Product  @relation(fields: [productId], references: [id])
+}
+
+model Coupon {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  discount    Decimal
+  expiryDate  DateTime
+
+  orders      OrderCoupon[]
+}
+
+model OrderCoupon {
+  orderId  Int
+  couponId Int
+
+  order    Order  @relation(fields: [orderId], references: [id])
+  coupon   Coupon @relation(fields: [couponId], references: [id])
+
+  @@id([orderId, couponId])
+}
+
+model Return {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  reason      String
+  status      ReturnStatus @default(PENDING)
+  refundAmount Decimal
+  createdAt   DateTime @default(now())
+
+  order       Order @relation(fields: [orderId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  SELLER
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentMethod {
+  CARD
+  PAYPAL
+  UPI
+  COD
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum ShippingStatus {
+  PENDING
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+}
+
+enum ReturnStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
