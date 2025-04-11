@@ -11,9 +11,10 @@ import { generateUniqueFilename } from "../../utils/generalUtils.js";
 import { ProductImage } from "../../types/index.js";
 import { Prisma } from "@prisma/client";
 import { deleteVariantService } from "../../service/products.service.js";
+import { MAX_VARIANT_COUNT } from "../../constants.js";
 
 export const createVariant = asyncHandler(async (req, res) => {
-	let { productId, size, color, material, additionalPrice, stockQty } =
+	let { productId, size, color, material, additionalPrice, stockQty, title } =
 		req.body;
 
 	// Convert stringified size to array if it's a string
@@ -27,6 +28,7 @@ export const createVariant = asyncHandler(async (req, res) => {
 		material,
 		additionalPrice,
 		stockQty,
+		title,
 	});
 
 	const product = await prisma.product.findUnique({
@@ -42,7 +44,7 @@ export const createVariant = asyncHandler(async (req, res) => {
 		where: { productId: Number(productId) },
 	});
 
-	if (count >= 1) {
+	if (count >= MAX_VARIANT_COUNT) {
 		throw new ApiError(400, "Variants limit exceeded. Max 4 allowed.");
 	}
 
@@ -84,6 +86,7 @@ export const createVariant = asyncHandler(async (req, res) => {
 			images: uploadedImages, // Now storing an array of images
 			additionalPrice,
 			stockQty: Number(stockQty),
+			title,
 		},
 	});
 
@@ -135,10 +138,7 @@ export const getVariantById = asyncHandler(async (req, res) => {
 // Update variant details
 export const updateVariant = asyncHandler(async (req, res) => {
 	const { variantId } = req.params;
-	let { size, color, material, additionalPrice, stockQty } = req.body;
-
-	// Convert stringified size to array if it's a string
-	if (typeof size === "string") size = JSON.parse(size);
+	let { size, color, material, additionalPrice, stockQty, title } = req.body;
 
 	updateProductVariantSchema.parse({
 		size,
@@ -146,17 +146,23 @@ export const updateVariant = asyncHandler(async (req, res) => {
 		material,
 		additionalPrice,
 		stockQty,
+		title,
 	});
+
+	const updateData: any = {};
+
+	if (size !== undefined)
+		updateData.size = typeof size === "string" ? JSON.parse(size) : size;
+	if (color !== undefined) updateData.color = color;
+	if (title !== undefined) updateData.title = title;
+	if (material !== undefined) updateData.material = material;
+	if (additionalPrice !== undefined)
+		updateData.additionalPrice = Number(additionalPrice);
+	if (stockQty !== undefined) updateData.stockQty = Number(stockQty);
 
 	const updatedVariant = await prisma.productVariant.update({
 		where: { id: Number(variantId) },
-		data: {
-			size,
-			color,
-			material,
-			additionalPrice: Number(additionalPrice),
-			stockQty: Number(stockQty),
-		},
+		data: updateData,
 	});
 
 	res

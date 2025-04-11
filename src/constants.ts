@@ -41,6 +41,7 @@ export enum ProductStatusEnum {
 }
 
 export const MAX_IMAGE_COUNT = 4;
+export const MAX_VARIANT_COUNT = 4;
 
 export enum PRODUCT_SIZE_ENUM {
 	XS = "XS",

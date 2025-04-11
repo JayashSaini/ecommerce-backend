@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AvailableProductSizes } from "../../constants.js";
 
 export const createProductSchema = z.object({
 	name: z
@@ -67,5 +68,49 @@ export const updateProductSchema = z.object({
 		})
 		.int("Category ID must be an integer")
 		.positive("Category ID must be a positive number")
+		.optional(),
+
+	size: z
+		.array(z.string(), {
+			invalid_type_error: "Size must be an array of allowed values",
+			required_error: "Size is required",
+		})
+		.nonempty("At least one size must be selected")
+		.superRefine((arr, ctx) => {
+			arr.forEach((val, index) => {
+				if (!AvailableProductSizes.includes(val as any)) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: `Invalid size '${val}' provided. Allowed sizes: ${AvailableProductSizes.join(
+							", "
+						)}`,
+						path: [index], // This ensures error points to `size.2` etc.
+					});
+				}
+			});
+		})
+		.optional(),
+
+	color: z
+		.string({
+			invalid_type_error: "Color must be a string",
+		})
+		.trim()
+		.max(30, "Color cannot exceed 30 characters.")
+		.optional(),
+
+	material: z
+		.string({
+			invalid_type_error: "Material must be a string",
+		})
+		.trim()
+		.max(50, "Material cannot exceed 50 characters.")
+		.optional(),
+	stockQty: z.coerce
+		.number({
+			invalid_type_error: "Stock quantity must be a number",
+		})
+		.int("Stock quantity must be an integer")
+		.nonnegative("Stock quantity cannot be negative")
 		.optional(),
 });

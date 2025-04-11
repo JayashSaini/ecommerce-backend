@@ -71,6 +71,7 @@ export const getProductById = asyncHandler(async (req, res) => {
 		where: { id: Number(id) },
 		include: {
 			variants: true, // <-- This assumes your relation field in Prisma schema is called "variants"
+			category: true,
 		},
 	});
 
@@ -158,12 +159,41 @@ export const createProduct = asyncHandler(async (req, res) => {
  */
 export const updateProduct = asyncHandler(async (req, res) => {
 	const { id } = req.params;
+	let {
+		name,
+		description,
+		categoryId,
+		basePrice,
+		size,
+		color,
+		material,
+		stockQty,
+	} = req.body;
 
-	updateProductSchema.parse(req.body); // Validate input data
+	// Convert numeric strings to proper numbers if needed
+	if (basePrice !== undefined) basePrice = Number(basePrice);
+	if (categoryId !== undefined) categoryId = Number(categoryId);
+	if (stockQty !== undefined) stockQty = Number(stockQty);
+
+	// Build update data object dynamically
+	const updateData: any = {};
+	if (size !== undefined)
+		updateData.size = typeof size === "string" ? JSON.parse(size) : size;
+	if (name !== undefined) updateData.name = name;
+	if (description !== undefined) updateData.description = description;
+	if (categoryId !== undefined) updateData.categoryId = categoryId;
+	if (basePrice !== undefined) updateData.basePrice = basePrice;
+
+	if (color !== undefined) updateData.color = color;
+	if (material !== undefined) updateData.material = material;
+	if (stockQty !== undefined) updateData.stockQty = stockQty;
+
+	// Validate only what is being updated
+	updateProductSchema.partial().parse(updateData);
 
 	const updatedProduct = await prisma.product.update({
 		where: { id: Number(id) },
-		data: req.body,
+		data: updateData,
 	});
 
 	if (!updatedProduct) {

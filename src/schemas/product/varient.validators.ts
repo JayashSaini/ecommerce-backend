@@ -61,8 +61,13 @@ export const createProductVariantSchema = z.object({
 			required_error: "Stock quantity is required",
 			invalid_type_error: "Stock quantity must be a number",
 		})
-
 		.nonnegative("Stock quantity cannot be negative"),
+	title: z
+		.string({
+			invalid_type_error: "title must be a string",
+		})
+		.trim()
+		.max(100, "title cannot exceed 100 characters."),
 });
 
 export const updateProductVariantSchema = z.object({
@@ -93,6 +98,13 @@ export const updateProductVariantSchema = z.object({
 		})
 		.trim()
 		.max(30, "Color cannot exceed 30 characters.")
+		.optional(),
+	title: z
+		.string({
+			invalid_type_error: "title must be a string",
+		})
+		.trim()
+		.max(100, "title cannot exceed 100 characters.")
 		.optional(),
 
 	material: z

@@ -52,6 +52,12 @@ model Product {
   status      ProductStatus
   images      Json[]     // Stores { url: "...", key: "..." }
   category    Category @relation(fields: [categoryId], references: [id])
+
+// these are optional fields 
+  size        String[]        // For single-size products
+  color       String?
+  material    String?
+  stockQty    Int?
   
   variants    ProductVariant[]
   orderItems  OrderItem[]
@@ -62,6 +68,7 @@ model Product {
 model ProductVariant {
   id             Int      @id @default(autoincrement())
   productId      Int
+  title          String @default("variant/t-shirt")
   images         Json[]    // Stores { url: "...", key: "..." }
   size           String[]
   color          String?
