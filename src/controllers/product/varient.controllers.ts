@@ -124,6 +124,9 @@ export const getVariantById = asyncHandler(async (req, res) => {
 
 	const variant = await prisma.productVariant.findFirst({
 		where: { id: Number(variantId) },
+		include: {
+			product: true,
+		},
 	});
 
 	if (!variant) {
