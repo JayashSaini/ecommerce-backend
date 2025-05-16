@@ -5,13 +5,14 @@ import { prisma } from "../../db/index.js";
 import {
 	createProductVariantSchema,
 	updateProductVariantSchema,
-} from "../../schemas/product/varient.validators.js";
+} from "../../schemas/product/variant.validators.js";
 import { deleteImageFromS3, uploadImageToS3 } from "../../utils/s3.js";
 import { generateUniqueFilename } from "../../utils/generalUtils.js";
 import { ProductImage } from "../../types/index.js";
 import { Prisma } from "@prisma/client";
 import { deleteVariantService } from "../../service/products.service.js";
-import { MAX_VARIANT_COUNT } from "../../constants.js";
+import { MAX_IMAGE_COUNT, MAX_VARIANT_COUNT } from "../../constants.js";
+import { Request, Response } from "express";
 
 export const createVariant = asyncHandler(async (req, res) => {
 	let { productId, size, color, material, additionalPrice, stockQty, title } =
@@ -143,15 +144,6 @@ export const updateVariant = asyncHandler(async (req, res) => {
 	const { variantId } = req.params;
 	let { size, color, material, additionalPrice, stockQty, title } = req.body;
 
-	updateProductVariantSchema.parse({
-		size,
-		color,
-		material,
-		additionalPrice,
-		stockQty,
-		title,
-	});
-
 	const updateData: any = {};
 
 	if (size !== undefined)
@@ -168,6 +160,8 @@ export const updateVariant = asyncHandler(async (req, res) => {
 		data: updateData,
 	});
 
+	updateProductVariantSchema.parse(updateData);
+
 	res
 		.status(200)
 		.json(
@@ -179,7 +173,7 @@ export const updateVariant = asyncHandler(async (req, res) => {
 export const deleteVariant = asyncHandler(async (req, res) => {
 	const { variantId } = req.params;
 
-	const variant = await prisma.productVariant.findUnique({
+	const variant = await prisma.productVariant.findFirst({
 		where: { id: Number(variantId) },
 	});
 
@@ -229,3 +223,132 @@ export const deleteVariantImage = asyncHandler(async (req, res) => {
 			new ApiResponse(200, null, "Image deleted successfully from variant.")
 		);
 });
+
+/**
+ * @desc    Upload a variant image and update the variant's image array
+ * @route   POST /api/products/:id
+ * @access  Private/Admin
+ */
+export const uploadVariantImage = asyncHandler(
+	async (req: Request, res: Response) => {
+		const variantId = Number(req.params.id);
+
+		// Fetch existing variant and its images
+		const variant = await prisma.productVariant.findUnique({
+			where: { id: variantId },
+			select: { images: true }, // images is a JSON array field
+		});
+
+		if (!variant) {
+			throw new ApiError(404, "Variant not found.");
+		}
+
+		const existingImages = Array.isArray(variant.images) ? variant.images : [];
+
+		// Enforce maximum image count
+		if (existingImages.length >= MAX_IMAGE_COUNT) {
+			throw new ApiError(
+				400,
+				`Maximum image limit of ${MAX_IMAGE_COUNT} reached.`
+			);
+		}
+
+		const uploadedFile = req.file as Express.Multer.File;
+
+		if (!uploadedFile) {
+			throw new ApiError(400, "Image file is required.");
+		}
+
+		// Upload image to S3
+		const uniqueKey = generateUniqueFilename(uploadedFile.originalname);
+		const uploadResult = await uploadImageToS3(
+			uniqueKey,
+			uploadedFile.buffer,
+			uploadedFile.mimetype
+		);
+
+		if (!uploadResult) {
+			throw new ApiError(500, "Failed to upload image to cloud storage.");
+		}
+
+		// Construct new image object
+		const newImage = {
+			url: uploadResult.imageUrl,
+			key: uploadResult.key,
+		};
+
+		// Append new image to existing images
+		const updatedImageArray: Prisma.JsonArray = [...existingImages, newImage];
+
+		// Update variant record with new image array
+		const updatedVariant = await prisma.productVariant.update({
+			where: { id: variantId },
+			data: {
+				images: updatedImageArray as unknown as Prisma.InputJsonValue[],
+			},
+		});
+
+		return res
+			.status(200)
+			.json(
+				new ApiResponse(
+					200,
+					updatedVariant,
+					"Variant image uploaded successfully."
+				)
+			);
+	}
+);
+
+/**
+ * Update the order of product images
+ * @route PATCH /api/products/:id/images/reorder
+ * @param {number} id - Product ID
+ * @param {Array<ProductImage>} newImagesOrder - New order of product images
+ * @returns {Object} Updated product
+ * @throws {ApiError} 404 - Product not found
+ * @throws {ApiError} 400 - Invalid image order
+ */
+export const updateVariantImageOrder = asyncHandler(
+	async (req: Request, res: Response) => {
+		const variantId = Number(req.params.id);
+		const { newImagesOrder } = req.body as { newImagesOrder: ProductImage[] };
+
+		// Fetch the variant
+		const variant = await prisma.productVariant.findUnique({
+			where: { id: variantId },
+			select: { images: true },
+		});
+
+		// Check if variant exists
+		if (!variant) {
+			throw new ApiError(404, "Variant not found.");
+		}
+		// Validate new image order
+		if (newImagesOrder?.length !== variant.images?.length) {
+			throw new ApiError(
+				400,
+				"New image order must include all existing images."
+			);
+		}
+
+		// Update product with new image order
+		const updatedProduct = await prisma.productVariant.update({
+			where: { id: variantId },
+			data: {
+				images: newImagesOrder as unknown as Prisma.InputJsonValue[],
+			},
+		});
+
+		// Send response
+		return res
+			.status(200)
+			.json(
+				new ApiResponse(
+					200,
+					updatedProduct,
+					"Variant image order updated successfully."
+				)
+			);
+	}
+);

@@ -38,19 +38,45 @@ export const getAllCategories = asyncHandler(async (req, res) => {
 // Get category by ID
 export const getCategoryById = asyncHandler(async (req, res) => {
 	const { id } = req.params;
+	const page = parseInt(req.query.page as string) || 1;
+	const limit = parseInt(req.query.limit as string) || 10;
+	const skip = (page - 1) * limit;
 
+	// Check if category exists
 	const category = await prisma.category.findUnique({
 		where: { id: Number(id) },
-		include: { products: true }, // Include associated products if needed
 	});
 
 	if (!category) {
 		throw new ApiError(404, "Category not found.");
 	}
 
+	// Fetch paginated products
+	const products = await prisma.product.findMany({
+		where: { categoryId: Number(id) },
+		skip,
+		take: limit,
+	});
+
+	// Optionally: fetch total product count for pagination
+	const totalProducts = await prisma.product.count({
+		where: { categoryId: Number(id) },
+	});
+
+	const responseData = {
+		category,
+		products,
+		pagination: {
+			page,
+			limit,
+			total: totalProducts,
+			totalPages: Math.ceil(totalProducts / limit),
+		},
+	};
+
 	return res
 		.status(200)
-		.json(new ApiResponse(200, category, "Category fetched successfully."));
+		.json(new ApiResponse(200, responseData, "Category fetched successfully."));
 });
 
 // Update category

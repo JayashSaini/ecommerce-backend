@@ -14,18 +14,15 @@ import { UserRolesEnum } from "../../constants.js";
 
 const router = Router();
 
-// authorized endpoints
-router.use(verifyJWT);
-
 router
 	.route("/")
 	.get(getAllCategories)
-	.post(verifyPermission([UserRolesEnum.ADMIN]), createCategory);
+	.post(verifyJWT, verifyPermission([UserRolesEnum.ADMIN]), createCategory);
 
 router
 	.route("/:id")
 	.get(getCategoryById)
-	.patch(verifyPermission([UserRolesEnum.ADMIN]), updateCategory)
-	.delete(verifyPermission([UserRolesEnum.ADMIN]), deleteCategory);
+	.patch(verifyJWT, verifyPermission([UserRolesEnum.ADMIN]), updateCategory)
+	.delete(verifyJWT, verifyPermission([UserRolesEnum.ADMIN]), deleteCategory);
 
 export default router;

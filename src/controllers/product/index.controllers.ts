@@ -8,10 +8,12 @@ import {
 } from "../../schemas/product/index.validators.js";
 import { generateUniqueFilename } from "../../utils/generalUtils.js";
 import { deleteImageFromS3, uploadImageToS3 } from "../../utils/s3.js";
-import { ProductStatusEnum } from "../../constants.js";
+import { MAX_IMAGE_COUNT, ProductStatusEnum } from "../../constants.js";
 import { ProductImage } from "../../types/index.js";
 import { Prisma } from "@prisma/client";
 import { deleteProductsVariantsService } from "../../service/products.service.js";
+import { JsonValue } from "@prisma/client/runtime/library.js";
+import { Request, Response } from "express";
 
 /**
  * Get all products
@@ -280,7 +282,7 @@ export const deleteProductImage = asyncHandler(async (req, res) => {
 
 	await prisma.product.update({
 		where: { id: Number(id) },
-		data: { images: updatedImages as unknown as Prisma.InputJsonValue[] },
+		data: { images: updatedImages as unknown as Prisma.InputJsonValue[][] },
 	});
 
 	res
@@ -289,3 +291,132 @@ export const deleteProductImage = asyncHandler(async (req, res) => {
 			new ApiResponse(200, null, "Image deleted successfully from product.")
 		);
 });
+
+/**
+ * @desc    Upload a product image and update the product's image array
+ * @route   POST /api/products/:id
+ * @access  Private/Admin
+ */
+export const uploadProductImage = asyncHandler(
+	async (req: Request, res: Response) => {
+		const productId = Number(req.params.id);
+
+		// Fetch existing product and its images
+		const product = await prisma.product.findUnique({
+			where: { id: productId },
+			select: { images: true }, // images is a JSON array field
+		});
+
+		if (!product) {
+			throw new ApiError(404, "Product not found.");
+		}
+
+		const existingImages = Array.isArray(product.images) ? product.images : [];
+
+		// Enforce maximum image count
+		if (existingImages.length >= MAX_IMAGE_COUNT) {
+			throw new ApiError(
+				400,
+				`Maximum image limit of ${MAX_IMAGE_COUNT} reached.`
+			);
+		}
+
+		const uploadedFile = req.file as Express.Multer.File;
+
+		if (!uploadedFile) {
+			throw new ApiError(400, "Image file is required.");
+		}
+
+		// Upload image to S3
+		const uniqueKey = generateUniqueFilename(uploadedFile.originalname);
+		const uploadResult = await uploadImageToS3(
+			uniqueKey,
+			uploadedFile.buffer,
+			uploadedFile.mimetype
+		);
+
+		if (!uploadResult) {
+			throw new ApiError(500, "Failed to upload image to cloud storage.");
+		}
+
+		// Construct new image object
+		const newImage = {
+			url: uploadResult.imageUrl,
+			key: uploadResult.key,
+		};
+
+		// Append new image to existing images
+		const updatedImageArray: Prisma.JsonArray = [...existingImages, newImage];
+
+		// Update product record with new image array
+		const updatedProduct = await prisma.product.update({
+			where: { id: productId },
+			data: {
+				images: updatedImageArray as unknown as Prisma.InputJsonValue[],
+			},
+		});
+
+		return res
+			.status(200)
+			.json(
+				new ApiResponse(
+					200,
+					updatedProduct,
+					"Product image uploaded successfully."
+				)
+			);
+	}
+);
+
+/**
+ * Update the order of product images
+ * @route PATCH /api/products/:id/images/reorder
+ * @param {number} id - Product ID
+ * @param {Array<ProductImage>} newImagesOrder - New order of product images
+ * @returns {Object} Updated product
+ * @throws {ApiError} 404 - Product not found
+ * @throws {ApiError} 400 - Invalid image order
+ */
+export const updateProductImageOrder = asyncHandler(
+	async (req: Request, res: Response) => {
+		const productId = Number(req.params.id);
+		const { newImagesOrder } = req.body as { newImagesOrder: ProductImage[] };
+
+		// Fetch the product
+		const product = await prisma.product.findUnique({
+			where: { id: productId },
+			select: { images: true },
+		});
+
+		// Check if product exists
+		if (!product) {
+			throw new ApiError(404, "Product not found.");
+		}
+		// Validate new image order
+		if (newImagesOrder?.length !== product.images?.length) {
+			throw new ApiError(
+				400,
+				"New image order must include all existing images."
+			);
+		}
+
+		// Update product with new image order
+		const updatedProduct = await prisma.product.update({
+			where: { id: productId },
+			data: {
+				images: newImagesOrder as unknown as Prisma.InputJsonValue[],
+			},
+		});
+
+		// Send response
+		return res
+			.status(200)
+			.json(
+				new ApiResponse(
+					200,
+					updatedProduct,
+					"Product image order updated successfully."
+				)
+			);
+	}
+);

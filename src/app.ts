@@ -81,7 +81,7 @@ app.use(morganMiddleware);
 import { errorHandler } from "./middlewares/error.middlewares.js";
 import { ApiResponse } from "./utils/ApiResponse.js";
 import productRoutes from "./routes/product/index.routes.js";
-import productVariantsRoutes from "./routes/product/varients.routes.js";
+import productVariantsRoutes from "./routes/product/variant.routes.js";
 import categoryRoutes from "./routes/category/index.routes.js";
 
 app.use("/api/v1/products", productRoutes);
