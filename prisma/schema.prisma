@@ -13,12 +13,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 model Cart {
-  id         Int      @id @default(autoincrement())
-  customerId Int
-  createdAt  DateTime @default(now())
+  id        Int       @id @default(autoincrement())
+  userId    Int       // ID of the user from external User Service
+  createdAt DateTime  @default(now())
+  items     CartItem[]
 
-  user       Int
-  items      CartItem[]
+  coupons CartCoupon[]
 }
 
 model CartItem {
@@ -152,6 +152,7 @@ model Coupon {
   expiryDate  DateTime
 
   orders      OrderCoupon[]
+  coupons CartCoupon[]
 }
 
 model OrderCoupon {
@@ -162,6 +163,18 @@ model OrderCoupon {
   coupon   Coupon @relation(fields: [couponId], references: [id])
 
   @@id([orderId, couponId])
+  @@unique([orderId]) // ensure only one coupon per cart
+}
+
+model CartCoupon {
+  cartId    Int
+  couponId  Int
+
+  cart    Cart    @relation(fields: [cartId], references: [id])
+  coupon  Coupon  @relation(fields: [couponId], references: [id])
+
+  @@id([cartId, couponId])
+  @@unique([cartId]) // ensure only one coupon per cart
 }
 
 model Return {

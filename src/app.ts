@@ -83,10 +83,14 @@ import { ApiResponse } from "./utils/ApiResponse.js";
 import productRoutes from "./routes/product/index.routes.js";
 import productVariantsRoutes from "./routes/product/variant.routes.js";
 import categoryRoutes from "./routes/category/index.routes.js";
+import cartRoutes from "./routes/cart/index.routes.js";
+import couponRoutes from "./routes/coupon/index.routes.js";
 
 app.use("/api/v1/products", productRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use("/api/v1/products/variants", productVariantsRoutes);
+app.use("/api/v1/cart", cartRoutes);
+app.use("/api/v1/coupons", couponRoutes);
 
 app.get("/api/v1/healthcheck", (req, res) => {
 	res.status(200).json(new ApiResponse(200, {}, "Server is running"));
